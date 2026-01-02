@@ -1,0 +1,598 @@
+openapi: 3.0.3
+info:
+  title: API de Chistes
+  description: |
+    API REST para gestión de chistes con integración de APIs externas (Chuck Norris y Dad Jokes).
+    
+    ## Funcionalidades principales:
+    - Obtener chistes aleatorios de APIs externas
+    - CRUD de chistes en base de datos PostgreSQL
+    - Endpoint de chistes emparejados (Chuck + Dad)
+    - Operaciones matemáticas (MCM e incremento)
+    
+    ## Consultas SQL disponibles:
+    1. Chistes por usuario
+    2. Chistes por categoría
+    3. Chistes por usuario y categoría
+  version: 1.0.0
+  contact:
+    name: API Support
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:3000/api
+    description: Servidor de desarrollo
+
+tags:
+  - name: Chistes
+    description: Operaciones con chistes
+  - name: Chistes Externos
+    description: Obtener chistes de APIs externas
+  - name: Chistes Emparejados
+    description: Chistes combinados de múltiples fuentes
+  - name: Consultas SQL
+    description: Consultas a la base de datos
+  - name: Matemáticas
+    description: Operaciones matemáticas
+
+paths:
+  /chistes:
+    get:
+      tags:
+        - Chistes Externos
+      summary: Obtener chiste aleatorio
+      description: Devuelve un chiste aleatorio de cualquier fuente (Chuck Norris o Dad Jokes)
+      responses:
+        '200':
+          description: Chiste obtenido exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JokeResponse'
+        '502':
+          description: Error de API externa
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      tags:
+        - Chistes
+      summary: Crear nuevo chiste
+      description: Guarda un nuevo chiste en la base de datos
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateJokeRequest'
+      responses:
+        '201':
+          description: Chiste creado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JokeDbResponse'
+        '400':
+          description: Datos inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /chistes/{source}:
+    get:
+      tags:
+        - Chistes Externos
+      summary: Obtener chiste de fuente específica
+      description: Obtiene un chiste de la fuente indicada (Chuck o Dad)
+      parameters:
+        - name: source
+          in: path
+          required: true
+          description: Fuente del chiste
+          schema:
+            type: string
+            enum: [Chuck, Dad]
+      responses:
+        '200':
+          description: Chiste obtenido exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JokeResponse'
+        '400':
+          description: Fuente inválida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Error de API externa
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /chistes/{number}:
+    put:
+      tags:
+        - Chistes
+      summary: Actualizar chiste
+      description: Actualiza el texto del chiste indicado
+      parameters:
+        - name: number
+          in: path
+          required: true
+          description: ID del chiste a actualizar
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateJokeRequest'
+      responses:
+        '200':
+          description: Chiste actualizado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JokeDbResponse'
+        '400':
+          description: Datos inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Chiste no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags:
+        - Chistes
+      summary: Eliminar chiste
+      description: Elimina el chiste indicado de la base de datos
+      parameters:
+        - name: number
+          in: path
+          required: true
+          description: ID del chiste a eliminar
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Chiste eliminado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          description: ID inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Chiste no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /chistes/emparejados:
+    get:
+      tags:
+        - Chistes Emparejados
+      summary: Obtener chistes emparejados
+      description: |
+        Obtiene 5 pares de chistes emparejados (Chuck Norris + Dad Jokes).
+        Las peticiones a ambas APIs se ejecutan en paralelo.
+        Cada par incluye un campo "combinado" con una mezcla creativa de ambos chistes.
+      responses:
+        '200':
+          description: Chistes emparejados obtenidos exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PairedJokesResponse'
+        '502':
+          description: Error obteniendo chistes de APIs externas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /chistes/db:
+    get:
+      tags:
+        - Consultas SQL
+      summary: Obtener todos los chistes de la BD
+      description: Devuelve todos los chistes almacenados en la base de datos
+      responses:
+        '200':
+          description: Lista de chistes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JokesListResponse'
+
+  /chistes/db/{id}:
+    get:
+      tags:
+        - Consultas SQL
+      summary: Obtener chiste por ID
+      description: Devuelve un chiste específico de la base de datos
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID del chiste
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Chiste encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JokeDbResponse'
+        '404':
+          description: Chiste no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /chistes/usuario/{userName}:
+    get:
+      tags:
+        - Consultas SQL
+      summary: "Consulta 1: Chistes por usuario"
+      description: Obtiene todos los chistes creados por un usuario específico
+      parameters:
+        - name: userName
+          in: path
+          required: true
+          description: Nombre del usuario
+          schema:
+            type: string
+          example: Manolito
+      responses:
+        '200':
+          description: Lista de chistes del usuario
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JokesListResponse'
+
+  /chistes/categoria/{categoryName}:
+    get:
+      tags:
+        - Consultas SQL
+      summary: "Consulta 2: Chistes por categoría"
+      description: Obtiene todos los chistes de una temática específica
+      parameters:
+        - name: categoryName
+          in: path
+          required: true
+          description: Nombre de la categoría/temática
+          schema:
+            type: string
+          example: humor negro
+      responses:
+        '200':
+          description: Lista de chistes de la categoría
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JokesListResponse'
+
+  /chistes/usuario/{userName}/categoria/{categoryName}:
+    get:
+      tags:
+        - Consultas SQL
+      summary: "Consulta 3: Chistes por usuario y categoría"
+      description: Obtiene los chistes de una temática creados por un usuario específico
+      parameters:
+        - name: userName
+          in: path
+          required: true
+          description: Nombre del usuario
+          schema:
+            type: string
+          example: Manolito
+        - name: categoryName
+          in: path
+          required: true
+          description: Nombre de la categoría
+          schema:
+            type: string
+          example: humor negro
+      responses:
+        '200':
+          description: Lista de chistes filtrados
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JokesListResponse'
+
+  /math/lcm:
+    get:
+      tags:
+        - Matemáticas
+      summary: Calcular Mínimo Común Múltiplo
+      description: Calcula el MCM de una lista de números enteros
+      parameters:
+        - name: numbers
+          in: query
+          required: true
+          description: Lista de números separados por comas
+          schema:
+            type: string
+          example: "2,3,4"
+      responses:
+        '200':
+          description: MCM calculado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LcmResponse'
+        '400':
+          description: Números inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /math/increment:
+    get:
+      tags:
+        - Matemáticas
+      summary: Incrementar número
+      description: Devuelve el número incrementado en 1
+      parameters:
+        - name: number
+          in: query
+          required: true
+          description: Número a incrementar
+          schema:
+            type: integer
+          example: 5
+      responses:
+        '200':
+          description: Número incrementado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncrementResponse'
+        '400':
+          description: Número inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /health:
+    get:
+      tags:
+        - Sistema
+      summary: Health check
+      description: Verifica el estado del servidor
+      responses:
+        '200':
+          description: Servidor funcionando correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+components:
+  schemas:
+    JokeResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            joke:
+              type: string
+              example: "Chuck Norris can divide by zero."
+            source:
+              type: string
+              example: "Chuck"
+
+    CreateJokeRequest:
+      type: object
+      required:
+        - text
+      properties:
+        text:
+          type: string
+          description: Texto del chiste
+          example: "¿Por qué el libro de matemáticas estaba triste? Porque tenía muchos problemas."
+        userId:
+          type: integer
+          description: ID del usuario creador
+          example: 1
+        categoryId:
+          type: integer
+          description: ID de la categoría/temática
+          example: 2
+
+    UpdateJokeRequest:
+      type: object
+      required:
+        - text
+      properties:
+        text:
+          type: string
+          description: Nuevo texto del chiste
+          example: "Nuevo texto del chiste actualizado"
+
+    JokeDbResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/Joke'
+        message:
+          type: string
+          example: "Chiste creado exitosamente"
+
+    JokesListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Joke'
+        count:
+          type: integer
+          example: 5
+        query:
+          type: string
+          example: "Chistes del usuario \"Manolito\""
+
+    Joke:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        text:
+          type: string
+          example: "Un chiste de ejemplo"
+        userId:
+          type: integer
+          nullable: true
+          example: 1
+        categoryId:
+          type: integer
+          nullable: true
+          example: 2
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    PairedJokesResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/PairedJoke'
+        count:
+          type: integer
+          example: 5
+
+    PairedJoke:
+      type: object
+      properties:
+        chuck:
+          type: string
+          example: "Chuck Norris counted to infinity. Twice."
+        dad:
+          type: string
+          example: "Why did the math book look sad? Because it had too many problems."
+        combinado:
+          type: string
+          example: "Chuck Norris counted to infinity. Twice. Also, the math book had too many problems."
+
+    LcmResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            numbers:
+              type: array
+              items:
+                type: integer
+              example: [2, 3, 4]
+            lcm:
+              type: integer
+              example: 12
+
+    IncrementResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            original:
+              type: integer
+              example: 5
+            result:
+              type: integer
+              example: 6
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Operación exitosa"
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            message:
+              type: string
+              example: "Descripción del error"
+            statusCode:
+              type: integer
+              example: 400
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "ok"
+        timestamp:
+          type: string
+          format: date-time
+        uptime:
+          type: number
+          example: 123.456
+
