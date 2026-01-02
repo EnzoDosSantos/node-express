@@ -5,15 +5,19 @@ info:
     API REST para gestión de chistes con integración de APIs externas (Chuck Norris y Dad Jokes).
     
     ## Funcionalidades principales:
+    - **Autenticación JWT** con login y OAuth2 (Google)
+    - **Endpoints protegidos** por roles (user/admin)
+    - **Sistema de alertas** con notificaciones email/SMS
     - Obtener chistes aleatorios de APIs externas
     - CRUD de chistes en base de datos PostgreSQL
     - Endpoint de chistes emparejados (Chuck + Dad)
     - Operaciones matemáticas (MCM e incremento)
     
-    ## Consultas SQL disponibles:
-    1. Chistes por usuario
-    2. Chistes por categoría
-    3. Chistes por usuario y categoría
+    ## Usuarios de prueba:
+    | Email | Password | Rol |
+    |-------|----------|-----|
+    | admin@test.com | admin123 | admin |
+    | user@test.com | user123 | user |
   version: 1.0.0
   contact:
     name: API Support
@@ -21,10 +25,16 @@ info:
     name: MIT
 
 servers:
-  - url: http://localhost:3000/api
+  - url: http://localhost:3000
     description: Servidor de desarrollo
 
 tags:
+  - name: Autenticación
+    description: Login JWT y OAuth2
+  - name: Endpoints Protegidos
+    description: Requieren token JWT
+  - name: Alertas
+    description: Sistema de notificaciones
   - name: Chistes
     description: Operaciones con chistes
   - name: Chistes Externos
@@ -36,11 +46,144 @@ tags:
   - name: Matemáticas
     description: Operaciones matemáticas
 
+security:
+  - bearerAuth: []
+
 paths:
-  /chistes:
+  /auth/login:
+    post:
+      tags:
+        - Autenticación
+      summary: Login con email y password
+      description: Autentica un usuario y devuelve un token JWT
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login exitoso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Credenciales inválidas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/profile:
+    get:
+      tags:
+        - Autenticación
+      summary: Obtener perfil del usuario
+      description: Devuelve los datos del usuario autenticado
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Perfil obtenido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileResponse'
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/google:
+    get:
+      tags:
+        - Autenticación
+      summary: Iniciar OAuth con Google
+      description: |
+        Redirige a Google para autenticación OAuth2.
+        
+        **IMPORTANTE**: Este endpoint NO funciona desde Swagger UI.
+        Debe abrirse directamente en el navegador:
+        
+        [http://localhost:3000/auth/google](http://localhost:3000/auth/google)
+      security: []
+      responses:
+        '302':
+          description: Redirección a Google (abrir en navegador)
+
+  /api/usuario:
+    get:
+      tags:
+        - Endpoints Protegidos
+      summary: Área de usuario
+      description: Endpoint accesible para usuarios con rol "user" o "admin"
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Acceso permitido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProtectedResponse'
+        '401':
+          description: Token inválido o no proporcionado
+        '403':
+          description: Permisos insuficientes
+
+  /api/admin:
+    get:
+      tags:
+        - Endpoints Protegidos
+      summary: Área de administrador
+      description: Endpoint accesible solo para usuarios con rol "admin"
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Acceso permitido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminResponse'
+        '401':
+          description: Token inválido o no proporcionado
+        '403':
+          description: Permisos insuficientes
+
+  /api/alert:
+    post:
+      tags:
+        - Alertas
+      summary: Enviar alerta
+      description: Envía una notificación por email o SMS
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlertRequest'
+      responses:
+        '200':
+          description: Alerta enviada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertResponse'
+        '400':
+          description: Datos inválidos
+
+  /api/chistes:
     get:
       tags:
         - Chistes Externos
+      security: []
       summary: Obtener chiste aleatorio
       description: Devuelve un chiste aleatorio de cualquier fuente (Chuck Norris o Dad Jokes)
       responses:
@@ -82,7 +225,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /chistes/{source}:
+  /api/chistes/{source}:
     get:
       tags:
         - Chistes Externos
@@ -116,7 +259,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /chistes/{number}:
+  /api/chistes/{number}:
     put:
       tags:
         - Chistes
@@ -189,7 +332,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /chistes/emparejados:
+  /api/chistes/emparejados:
     get:
       tags:
         - Chistes Emparejados
@@ -212,7 +355,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /chistes/db:
+  /api/chistes/db:
     get:
       tags:
         - Consultas SQL
@@ -226,7 +369,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/JokesListResponse'
 
-  /chistes/db/{id}:
+  /api/chistes/db/{id}:
     get:
       tags:
         - Consultas SQL
@@ -254,7 +397,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /chistes/usuario/{userName}:
+  /api/chistes/usuario/{userName}:
     get:
       tags:
         - Consultas SQL
@@ -276,7 +419,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/JokesListResponse'
 
-  /chistes/categoria/{categoryName}:
+  /api/chistes/categoria/{categoryName}:
     get:
       tags:
         - Consultas SQL
@@ -298,7 +441,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/JokesListResponse'
 
-  /chistes/usuario/{userName}/categoria/{categoryName}:
+  /api/chistes/usuario/{userName}/categoria/{categoryName}:
     get:
       tags:
         - Consultas SQL
@@ -327,7 +470,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/JokesListResponse'
 
-  /math/lcm:
+  /api/math/lcm:
     get:
       tags:
         - Matemáticas
@@ -355,7 +498,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /math/increment:
+  /api/math/increment:
     get:
       tags:
         - Matemáticas
@@ -383,7 +526,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /health:
+  /api/health:
     get:
       tags:
         - Sistema
@@ -398,7 +541,161 @@ paths:
                 $ref: '#/components/schemas/HealthResponse'
 
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Token JWT obtenido del login
+
   schemas:
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: "admin@test.com"
+        password:
+          type: string
+          example: "admin123"
+
+    AuthResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            token:
+              type: string
+              example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+            user:
+              $ref: '#/components/schemas/User'
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "uuid-here"
+        name:
+          type: string
+          example: "Admin User"
+        email:
+          type: string
+          example: "admin@test.com"
+        role:
+          type: string
+          enum: [user, admin]
+          example: "admin"
+        provider:
+          type: string
+          enum: [local, google]
+          example: "local"
+
+    ProfileResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/User'
+
+    ProtectedResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            message:
+              type: string
+              example: "Welcome to the user area"
+            user:
+              type: object
+              properties:
+                sub:
+                  type: string
+                name:
+                  type: string
+                email:
+                  type: string
+                role:
+                  type: string
+            timestamp:
+              type: string
+              format: date-time
+
+    AdminResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            message:
+              type: string
+              example: "Welcome to the admin area"
+            permissions:
+              type: array
+              items:
+                type: string
+              example: ["read", "write", "delete", "manage_users"]
+
+    AlertRequest:
+      type: object
+      required:
+        - recipient
+        - message
+      properties:
+        recipient:
+          type: string
+          description: Email o número de teléfono
+          example: "test@example.com"
+        message:
+          type: string
+          description: Mensaje de la alerta
+          example: "Tu alerta de prueba"
+        channel:
+          type: string
+          enum: [email, sms]
+          default: email
+          description: Canal de notificación
+          example: "email"
+
+    AlertResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          properties:
+            sent:
+              type: boolean
+              example: true
+            channel:
+              type: string
+              example: "email"
+            recipient:
+              type: string
+              example: "test@example.com"
+            timestamp:
+              type: string
+              format: date-time
+
     JokeResponse:
       type: object
       properties:

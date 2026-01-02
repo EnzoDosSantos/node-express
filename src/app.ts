@@ -1,10 +1,13 @@
 import express, { Application } from 'express';
 import cors from 'cors';
+import passport from 'passport';
 import swaggerUi from 'swagger-ui-express';
 import YAML from 'yamljs';
 import path from 'path';
 import routes from './routes';
+import authRoutes from './auth/auth.routes';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
+import { configurePassport } from './auth/passport.config';
 import logger from './utils/logger';
 
 export function createApp(): Application {
@@ -22,6 +25,9 @@ export function createApp(): Application {
   app.use(cors());
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
+
+  configurePassport();
+  app.use(passport.initialize());
 
   try {
     const swaggerDocument = YAML.load(path.join(__dirname, '../docs/swagger.yaml'));
@@ -41,6 +47,18 @@ export function createApp(): Application {
       endpoints: {
         docs: '/api-docs',
         health: '/api/health',
+        auth: {
+          login: 'POST /auth/login',
+          profile: 'GET /auth/profile',
+          google: 'GET /auth/google',
+        },
+        protected: {
+          usuario: 'GET /api/usuario (role: user)',
+          admin: 'GET /api/admin (role: admin)',
+        },
+        alerts: {
+          send: 'POST /api/alert',
+        },
         chistes: {
           aleatorio: 'GET /api/chistes',
           porFuente: 'GET /api/chistes/:source (Chuck | Dad)',
@@ -63,6 +81,7 @@ export function createApp(): Application {
     });
   });
 
+  app.use('/auth', authRoutes);
   app.use('/api', routes);
   app.use(notFoundHandler);
   app.use(errorHandler);

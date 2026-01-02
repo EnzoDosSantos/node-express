@@ -5,15 +5,8 @@ services:
       dockerfile: Dockerfile.dev
     ports:
       - "3000:3000"
-    environment:
-      - NODE_ENV=development
-      - PORT=3000
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=jokes_db
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - LOG_LEVEL=info
+    env_file:
+      - .env
     volumes:
       - .:/app
       - /app/node_modules
@@ -52,4 +45,5 @@ services:
 
 volumes:
   postgres_data:
+
 

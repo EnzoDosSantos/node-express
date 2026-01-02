@@ -18,6 +18,10 @@ API REST desarrollada con Node.js, Express, TypeScript y PostgreSQL. Integra API
 
 ## ✨ Características
 
+- **Autenticación JWT**: Login con tokens JWT firmados con HMAC
+- **OAuth2 con Google**: Autenticación externa con Google
+- **Endpoints protegidos**: Control de acceso por roles (user/admin)
+- **Sistema de alertas**: Notificaciones por email/SMS con inyección de dependencias
 - **Chistes externos**: Integración con APIs de Chuck Norris y Dad Jokes
 - **Chistes emparejados**: Endpoint que obtiene 5 pares de chistes en paralelo
 - **CRUD de chistes**: Crear, leer, actualizar y eliminar chistes en PostgreSQL
@@ -33,6 +37,7 @@ API REST desarrollada con Node.js, Express, TypeScript y PostgreSQL. Integra API
 - **Framework**: Express.js
 - **Lenguaje**: TypeScript
 - **Base de datos**: PostgreSQL
+- **Autenticación**: JWT + Passport.js + OAuth2
 - **Testing**: Jest
 - **Documentación**: Swagger/OpenAPI
 - **Logging**: Winston
@@ -191,7 +196,7 @@ Variables de entorno disponibles en `.env`:
 PORT=3000
 NODE_ENV=development
 
-# PostgreSQL
+# PostgreSQL (para Docker usar DB_HOST=postgres)
 DB_HOST=localhost
 DB_PORT=5432
 DB_NAME=jokes_db
@@ -200,6 +205,18 @@ DB_PASSWORD=postgres
 
 # Logging
 LOG_LEVEL=info
+
+# JWT
+JWT_SECRET=tu-secret-super-seguro
+JWT_EXPIRES_IN=1h
+
+# OAuth2 - Google
+GOOGLE_CLIENT_ID=tu-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=tu-client-secret
+GOOGLE_CALLBACK_URL=http://localhost:3000/auth/google/callback
+
+# Notificaciones
+DEFAULT_NOTIFIER=email
 ```
 
 ## 📖 Uso
@@ -221,6 +238,44 @@ El servidor estará disponible en `http://localhost:3000`
 Accede a Swagger UI en: `http://localhost:3000/api-docs`
 
 ## 🔌 Endpoints
+
+### Autenticación
+
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| POST | `/auth/login` | Login con email/password (devuelve JWT) |
+| GET | `/auth/profile` | Perfil del usuario autenticado |
+| GET | `/auth/google` | Iniciar OAuth con Google |
+| GET | `/auth/google/callback` | Callback de Google OAuth |
+
+**Usuarios de prueba (mock):**
+
+| Email | Password | Rol |
+|-------|----------|-----|
+| `admin@test.com` | `admin123` | admin |
+| `user@test.com` | `user123` | user |
+
+### Endpoints Protegidos
+
+| Método | Endpoint | Rol requerido | Descripción |
+|--------|----------|---------------|-------------|
+| GET | `/api/usuario` | user, admin | Área de usuario |
+| GET | `/api/admin` | admin | Área de administrador |
+
+### Alertas/Notificaciones
+
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| POST | `/api/alert` | Enviar alerta (email/sms) |
+
+**Body:**
+```json
+{
+  "recipient": "test@example.com",
+  "message": "Tu mensaje de alerta",
+  "channel": "email"  // opcional: "email" (default) o "sms"
+}
+```
 
 ### Chistes Externos
 
@@ -347,22 +402,45 @@ curl http://localhost:3000/api/chistes/usuario/Manolito/categoria/humor%20negro
 ```
 node-express/
 ├── src/
+│   ├── auth/               # Autenticación
+│   │   ├── auth.controller.ts
+│   │   ├── auth.routes.ts
+│   │   ├── auth.service.ts
+│   │   ├── jwt.service.ts
+│   │   ├── passport.config.ts
+│   │   ├── users.store.ts
+│   │   ├── types.ts
+│   │   └── middleware/
+│   │       └── authenticate.ts
+│   ├── notifiers/          # Sistema de notificaciones
+│   │   ├── notifier.interface.ts
+│   │   ├── email.notifier.ts
+│   │   ├── sms.notifier.ts
+│   │   └── index.ts
 │   ├── controllers/        # Controladores HTTP
+│   │   ├── alerts.controller.ts
 │   │   ├── jokes.controller.ts
-│   │   └── math.controller.ts
+│   │   ├── math.controller.ts
+│   │   └── protected.controller.ts
 │   ├── services/           # Lógica de negocio
+│   │   ├── alert.service.ts
 │   │   ├── math.service.ts
 │   │   ├── jokes.service.ts
 │   │   ├── chuckNorris.service.ts
 │   │   ├── dadJoke.service.ts
 │   │   ├── externalJokes.service.ts
 │   │   └── pairedJokes.service.ts
+│   ├── config/             # Configuración
+│   │   ├── auth.config.ts
+│   │   └── notifier.factory.ts
 │   ├── repositories/       # Acceso a datos
 │   │   └── joke.repository.ts
 │   ├── routes/             # Definición de rutas
 │   │   ├── index.ts
+│   │   ├── alerts.routes.ts
 │   │   ├── jokes.routes.ts
-│   │   └── math.routes.ts
+│   │   ├── math.routes.ts
+│   │   └── protected.routes.ts
 │   ├── database/           # Configuración BD
 │   │   ├── connection.ts
 │   │   ├── migrate.ts
@@ -377,6 +455,8 @@ node-express/
 │   └── index.ts            # Punto de entrada
 ├── tests/
 │   ├── unit/               # Tests unitarios
+│   │   ├── auth/
+│   │   ├── notifiers/
 │   │   └── services/
 │   └── setup.ts            # Configuración Jest
 ├── docs/
@@ -392,6 +472,62 @@ node-express/
 ```
 
 ## 🔍 Ejemplos de Uso
+
+### Autenticación JWT
+
+**Login:**
+```bash
+curl -X POST http://localhost:3000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@test.com","password":"admin123"}'
+```
+
+**Respuesta:**
+```json
+{
+  "success": true,
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "user": {
+      "id": "uuid",
+      "name": "Admin User",
+      "email": "admin@test.com",
+      "role": "admin"
+    }
+  }
+}
+```
+
+**Usar token en endpoints protegidos:**
+```bash
+curl http://localhost:3000/api/usuario \
+  -H "Authorization: Bearer <TU_TOKEN>"
+```
+
+### OAuth con Google
+
+Abrir en navegador:
+```
+http://localhost:3000/auth/google
+```
+
+Después de autenticarte, recibirás un JWT.
+
+### Enviar Alerta
+
+**Por email:**
+```bash
+curl -X POST http://localhost:3000/api/alert \
+  -H "Content-Type: application/json" \
+  -d '{"recipient":"test@example.com","message":"Alerta de prueba"}'
+```
+
+**Por SMS:**
+```bash
+curl -X POST http://localhost:3000/api/alert \
+  -H "Content-Type: application/json" \
+  -d '{"recipient":"+123456789","message":"Alerta SMS","channel":"sms"}'
+```
 
 ### Obtener chiste aleatorio
 
